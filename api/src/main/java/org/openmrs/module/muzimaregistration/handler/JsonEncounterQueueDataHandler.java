@@ -38,11 +38,11 @@ import org.openmrs.api.context.Context;
 import org.openmrs.module.muzima.exception.QueueProcessorException;
 import org.openmrs.module.muzima.model.QueueData;
 import org.openmrs.module.muzima.model.handler.QueueDataHandler;
+import org.openmrs.module.muzima.web.resource.utils.JsonUtils;
 import org.openmrs.module.muzimaforms.MuzimaForm;
 import org.openmrs.module.muzimaforms.api.MuzimaFormService;
 import org.openmrs.module.muzimaregistration.api.RegistrationDataService;
 import org.openmrs.module.muzimaregistration.api.model.RegistrationData;
-import org.openmrs.module.muzimaregistration.utils.JsonUtils;
 import org.springframework.stereotype.Component;
 
 import java.text.DateFormat;
@@ -385,6 +385,8 @@ public class JsonEncounterQueueDataHandler implements QueueDataHandler {
         }
         return date;
     }
+
+
 
     @Override
     public boolean accept(final QueueData queueData) {

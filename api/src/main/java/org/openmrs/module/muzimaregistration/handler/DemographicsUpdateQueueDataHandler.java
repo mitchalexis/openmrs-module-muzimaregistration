@@ -29,7 +29,7 @@ import org.openmrs.api.context.Context;
 import org.openmrs.module.muzima.exception.QueueProcessorException;
 import org.openmrs.module.muzima.model.QueueData;
 import org.openmrs.module.muzima.model.handler.QueueDataHandler;
-import org.openmrs.module.muzimaregistration.utils.JsonUtils;
+import org.openmrs.module.muzima.web.resource.utils.JsonUtils;
 import org.springframework.stereotype.Component;
 
 import java.text.DateFormat;
