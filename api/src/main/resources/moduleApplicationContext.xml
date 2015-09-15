@@ -38,5 +38,33 @@
 			</list>
 		</property>
 	</bean>
-	
+
+    <bean parent="serviceContext">
+        <property name="moduleService">
+            <list>
+                <value>org.openmrs.module.muzimaforms.api.MuzimaFormService</value>
+                <bean
+                        class="org.springframework.transaction.interceptor.TransactionProxyFactoryBean">
+                    <property name="transactionManager">
+                        <ref bean="transactionManager"/>
+                    </property>
+                    <property name="target">
+                        <bean class="org.openmrs.module.muzimaforms.api.impl.MuzimaFormServiceImpl">
+                            <constructor-arg name="dao" ref="muzimaFormDAO"/>
+                            <constructor-arg name="html5Transformer" ref="xform2HtmlTransformer"/>
+                            <constructor-arg name="modelXml2JsonTransformer" ref="modelXml2JsonTransformer"/>
+                            <constructor-arg name="odk2JavarosaTransformer" ref="odk2JavarosaTransformer"/>
+                            <constructor-arg name="odk2HTML5Transformer" ref="odk2HTML5Transformer"/>
+                        </bean>
+                    </property>
+                    <property name="preInterceptors">
+                        <ref bean="serviceInterceptors"/>
+                    </property>
+                    <property name="transactionAttributeSource">
+                        <ref bean="transactionAttributeSource"/>
+                    </property>
+                </bean>
+            </list>
+        </property>
+    </bean>
 </beans>
