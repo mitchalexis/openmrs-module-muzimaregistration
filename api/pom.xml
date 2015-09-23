@@ -45,9 +45,14 @@
 		</dependency>
 
 		<dependency>
-            <groupId>org.openmrs.module</groupId>
-            <artifactId>muzima-omod</artifactId>
-        </dependency>
+			<groupId>org.openmrs.module</groupId>
+			<artifactId>muzima-omod</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.openmrs.module</groupId>
+			<artifactId>muzimaforms-api</artifactId>
+		</dependency>
 
         <dependency>
             <groupId>org.openmrs.module</groupId>

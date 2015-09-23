@@ -67,6 +67,14 @@
 
             <dependency>
                 <groupId>org.openmrs.module</groupId>
+                <artifactId>muzimaforms-api</artifactId>
+                <version>${muzimaFormsVersion}</version>
+                <type>jar</type>
+                <scope>provided</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.openmrs.module</groupId>
                 <artifactId>webservices.rest-omod</artifactId>
                 <version>${webservicesRestVersion}</version>
                 <type>jar</type>
