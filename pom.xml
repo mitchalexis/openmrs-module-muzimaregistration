@@ -73,14 +73,6 @@
                 <scope>provided</scope>
             </dependency>
 
-            <dependency>
-                <groupId>org.openmrs.module</groupId>
-                <artifactId>muzimaforms-omod</artifactId>
-                <version>${muzimaFormsVersion}</version>
-                <type>jar</type>
-                <scope>provided</scope>
-            </dependency>
-
             <!-- Begin OpenMRS core -->
             <dependency>
                 <groupId>org.openmrs.api</groupId>

@@ -17,7 +17,6 @@
 
     <require_modules>
         <require_module version="${muzimaVersion}">org.openmrs.module.muzima</require_module>
-        <require_module version="${muzimaFormsVersion}">org.openmrs.module.muzimaforms</require_module>
     </require_modules>
 
 	<!-- Module Activator -->
