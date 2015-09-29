@@ -58,6 +58,18 @@
             <groupId>org.openmrs.module</groupId>
             <artifactId>webservices.rest-omod</artifactId>
         </dependency>
+		<dependency>
+			<groupId>org.openmrs.module</groupId>
+			<artifactId>kenyaemr-api</artifactId>
+			<version>15.1-SNAPSHOT</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.openmrs.module</groupId>
+			<artifactId>metadatadeploy-api</artifactId>
+			<version>1.3</version>
+			<scope>provided</scope>
+		</dependency>
 
 		<!-- Begin OpenMRS core -->
 		<dependency>

@@ -18,24 +18,33 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.time.DateUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.openmrs.Concept;
 import org.openmrs.Location;
+import org.openmrs.Obs;
 import org.openmrs.Patient;
 import org.openmrs.PatientIdentifier;
 import org.openmrs.PatientIdentifierType;
+import org.openmrs.PersonAddress;
+import org.openmrs.PersonAttribute;
+import org.openmrs.PersonAttributeType;
 import org.openmrs.PersonName;
 import org.openmrs.annotation.Handler;
+import org.openmrs.api.PersonService;
 import org.openmrs.api.context.Context;
+import org.openmrs.module.kenyaemr.Dictionary;
 import org.openmrs.module.muzima.exception.QueueProcessorException;
 import org.openmrs.module.muzima.model.QueueData;
 import org.openmrs.module.muzima.model.handler.QueueDataHandler;
 import org.openmrs.module.muzimaregistration.api.RegistrationDataService;
 import org.openmrs.module.muzimaregistration.api.model.RegistrationData;
 import org.openmrs.module.muzimaregistration.utils.JsonUtils;
+import org.openmrs.module.kenyaemr.metadata.CommonMetadata;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.TreeSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -54,6 +63,8 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
 
     private Patient unsavedPatient;
     private String payload;
+    Set<PersonAttribute> personAttributes;
+    Location encounterLocation;
     private QueueProcessorException queueProcessorException;
 
     @Override
@@ -63,6 +74,7 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         try {
             if (validate(queueData)) {
                 registerUnsavedPatient();
+                saveOtherPatientAttributesAsObs();
             }
         } catch (Exception e) {
             /*Custom exception thrown by the validate function should not be added again into @queueProcessorException.
@@ -110,13 +122,16 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         }
     }
 
-
     private void populateUnsavedPatientFromPayload() {
+        setEncounterLocationFromPayload();
         setPatientIdentifiersFromPayload();
         setPatientBirthDateFromPayload();
         setPatientBirthDateEstimatedFromPayload();
         setPatientGenderFromPayload();
         setPatientNameFromPayload();
+        setPatientAddressesFromPayload();
+        setPatientAttibutesFromPayload();
+        setDeceasedFromPayload();
     }
 
     private void setPatientIdentifiersFromPayload() {
@@ -129,13 +144,13 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         if (!otherIdentifiers.isEmpty()) {
             patientIdentifiers.addAll(otherIdentifiers);
         }
-        setIdentifierTypeLocation(patientIdentifiers);
+        setIdentifierLocation(patientIdentifiers);
         unsavedPatient.setIdentifiers(patientIdentifiers);
     }
 
     private PatientIdentifier getPreferredPatientIdentifierFromPayload(){
         String identifierValue = JsonUtils.readAsString(payload, "$['patient']['patient.medical_record_number']");
-        String identifierTypeName = "AMRS Universal ID";
+        String identifierTypeName = "OpenMRS ID";
 
         PatientIdentifier preferredPatientIdentifier = createPatientIdentifier(identifierTypeName, identifierValue);
         if (preferredPatientIdentifier != null) {
@@ -186,23 +201,21 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         return null;
     }
 
-    private void setIdentifierTypeLocation(final Set<PatientIdentifier> patientIdentifiers) {
-        String locationIdString = JsonUtils.readAsString(payload, "$['encounter']['encounter.location_id']");
-        Location location = null;
-        int locationId;
-
-        if(locationIdString != null){
-            locationId = Integer.parseInt(locationIdString);
-            location = Context.getLocationService().getLocation(locationId);
+    private void setIdentifierLocation(final Set<PatientIdentifier> patientIdentifiers) {
+        Iterator<PatientIdentifier> iterator = patientIdentifiers.iterator();
+        while (iterator.hasNext()) {
+            PatientIdentifier identifier = iterator.next();
+            identifier.setLocation(encounterLocation);
         }
-        
-        if (location == null) {
-            queueProcessorException.addException(new Exception("Unable to find encounter location using the id: " + locationIdString));
-        } else {
-            Iterator<PatientIdentifier> iterator = patientIdentifiers.iterator();
-            while (iterator.hasNext()) {
-                PatientIdentifier identifier = iterator.next();
-                identifier.setLocation(location);
+    }
+
+    private void setEncounterLocationFromPayload(){
+        String locationIdString = JsonUtils.readAsString(payload, "$['encounter']['encounter.location_id']");
+        if(locationIdString != null){
+            int locationId = Integer.parseInt(locationIdString);
+            encounterLocation = Context.getLocationService().getLocation(locationId);
+            if (encounterLocation == null) {
+                queueProcessorException.addException(new Exception("Unable to find encounter location using the id: " + locationIdString));
             }
         }
     }
@@ -237,6 +250,122 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         personName.setMiddleName(middleName);
         personName.setFamilyName(familyName);
         unsavedPatient.addName(personName);
+    }
+
+    private void setDeceasedFromPayload(){
+        boolean deceased = JsonUtils.readAsBoolean(payload, "$['patient']['patient.deceased']");
+        if(deceased) {
+            unsavedPatient.setDead(deceased);
+            Date  dateOfDeath = JsonUtils.readAsDate(payload, "$['patient']['patient.date_of_death']");
+            unsavedPatient.setDeathDate(dateOfDeath);
+        }
+    }
+
+    private void setPatientAddressesFromPayload(){
+        PersonAddress patientAddress = new PersonAddress();
+
+        String postalAddress = JsonUtils.readAsString(payload, "$['patient']['patient.postal_address']");
+        patientAddress.setAddress1(postalAddress);
+
+        String landmark = JsonUtils.readAsString(payload, "$['patient']['patient.landmark']");
+        patientAddress.setAddress2(landmark);
+
+        String schoolOrEmployerAddress = JsonUtils.readAsString(payload, "$['patient']['patient.school_or_employer_address']");
+        patientAddress.setAddress3(schoolOrEmployerAddress);
+
+        String division = JsonUtils.readAsString(payload, "$['patient']['patient.division']");
+        patientAddress.setAddress4(division);
+
+        String subLocation = JsonUtils.readAsString(payload, "$['patient']['patient.sub_location']");
+        patientAddress.setAddress5(subLocation);
+
+        String location = JsonUtils.readAsString(payload, "$['patient']['patient.location']");
+        patientAddress.setAddress6(location);
+
+        String county = JsonUtils.readAsString(payload, "$['patient']['patient.county']");
+        patientAddress.setCountry(county);
+
+        String village = JsonUtils.readAsString(payload, "$['patient']['patient.village']");
+        patientAddress.setCityVillage(village);
+
+        String district = JsonUtils.readAsString(payload, "$['patient']['patient.district']");
+        patientAddress.setCountyDistrict(district);
+
+        String province = JsonUtils.readAsString(payload, "$['patient']['patient.province']");
+        patientAddress.setStateProvince(province);
+
+        String houseOrPlotNumber = JsonUtils.readAsString(payload, "$['patient']['patient.house_or_plot_number']");
+        patientAddress.setPostalCode(houseOrPlotNumber);
+
+        Set<PersonAddress> addresses = new TreeSet<PersonAddress>();
+        addresses.add(patientAddress);
+        unsavedPatient.setAddresses(addresses);
+    }
+    private void setPatientAttibutesFromPayload(){
+
+        String telephone = JsonUtils.readAsString(payload, "$['patient']['patient.phone_number']");
+        setAsAttribute(CommonMetadata._PersonAttributeType.TELEPHONE_CONTACT, telephone);
+
+        String subChief = JsonUtils.readAsString(payload, "$['patient']['patient.subchief']");
+        setAsAttribute(CommonMetadata._PersonAttributeType.SUBCHIEF_NAME, subChief);;
+
+        String nextOfKinName = JsonUtils.readAsString(payload, "$['patient']['patient.next_of_kin_name']");
+        setAsAttribute(CommonMetadata._PersonAttributeType.NEXT_OF_KIN_NAME, nextOfKinName);
+
+        String nextOfKinRelationship =
+                JsonUtils.readAsString(payload, "$['patient']['patient.next_of_kin_relationship']");
+        setAsAttribute(CommonMetadata._PersonAttributeType.NEXT_OF_KIN_RELATIONSHIP, nextOfKinRelationship);
+
+        String nextOfKinContact = JsonUtils.readAsString(payload, "$['patient']['patient.next_of_kin_contact']");
+        setAsAttribute(CommonMetadata._PersonAttributeType.NEXT_OF_KIN_CONTACT, nextOfKinContact);
+
+        String nextOfKinAddress = JsonUtils.readAsString(payload, "$['patient']['patient.next_of_kin_address']");
+        setAsAttribute(CommonMetadata._PersonAttributeType.NEXT_OF_KIN_ADDRESS, nextOfKinAddress);
+    }
+
+    private void setAsAttribute(String attributeTypeUuid, String value){
+
+        PersonService personService = Context.getPersonService();
+        PersonAttributeType attributeType = personService.getPersonAttributeTypeByName(attributeTypeUuid);
+        if(attributeType !=null && value != null){
+            PersonAttribute personAttribute = new PersonAttribute(attributeType, value);
+            personAttributes.add(personAttribute);
+        } else if(attributeType ==null){
+            queueProcessorException.addException(
+                    new Exception("Unable to find Person Attribute type by uuid '" + attributeTypeUuid + "'")
+            );
+        }
+    }
+
+    private void saveOtherPatientAttributesAsObs(){
+
+        String maritalStatus = JsonUtils.readAsString(payload, "$['patient']['patient.marital_status']");
+        saveAsCodedObs(Dictionary.getConcept(Dictionary.CIVIL_STATUS), maritalStatus);
+
+        String occupation = JsonUtils.readAsString(payload, "$['patient']['patient.occupation']");
+        saveAsCodedObs(Dictionary.getConcept(Dictionary.OCCUPATION), occupation);
+
+        String education = JsonUtils.readAsString(payload, "$['patient']['patient.education']");
+        saveAsCodedObs(Dictionary.getConcept(Dictionary.EDUCATION), education);
+    }
+
+    private void saveAsCodedObs(Concept question, String value){
+        if(StringUtils.isNotEmpty(value)) {
+            String[] valueCodedElements = StringUtils.split(value, "\\^");
+            int valueCodedId = Integer.parseInt(valueCodedElements[0]);
+            Concept valueCoded = Context.getConceptService().getConcept(valueCodedId);
+            if (valueCoded == null) {
+                queueProcessorException.addException(new Exception("Unable to find concept for value coded with id: " + valueCodedId));
+            } else {
+                Obs obs = new Obs();
+                obs.setPerson(unsavedPatient);
+                obs.setConcept(question);
+                obs.setObsDatetime(new Date());
+                obs.setLocation(encounterLocation);
+                obs.setValueCoded(valueCoded);
+                Context.getObsService().saveObs(obs, "mUzima creating patient");
+            }
+        }
     }
 
     private void registerUnsavedPatient() {
