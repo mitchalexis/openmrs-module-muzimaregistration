@@ -41,7 +41,7 @@ import java.util.Set;
  * TODO: Write brief description about the class here.
  */
 @Resource(name = RestConstants.VERSION_1 + MuzimaRestController.MUZIMA_NAMESPACE + "/registration",
-        supportedClass = Patient.class,
+        supportedClass = FakePatient.class,
         supportedOpenmrsVersions = {"1.8.*", "1.9.*"})
 public class RegistrationResource extends DataDelegatingCrudResource<FakePatient> {
     /**
