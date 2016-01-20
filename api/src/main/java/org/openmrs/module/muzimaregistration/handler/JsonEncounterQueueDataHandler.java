@@ -17,7 +17,6 @@ import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
-import org.apache.commons.lang.time.DateUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.openmrs.Concept;
@@ -40,9 +39,8 @@ import org.openmrs.module.muzima.model.QueueData;
 import org.openmrs.module.muzima.model.handler.QueueDataHandler;
 import org.openmrs.module.muzimaforms.MuzimaForm;
 import org.openmrs.module.muzimaforms.api.MuzimaFormService;
-import org.openmrs.module.muzimaregistration.api.RegistrationDataService;
-import org.openmrs.module.muzimaregistration.api.model.RegistrationData;
 import org.openmrs.module.muzimaregistration.utils.JsonUtils;
+import org.openmrs.module.muzimaregistration.utils.PatientSearchUtils;
 import org.springframework.stereotype.Component;
 
 import java.text.DateFormat;
@@ -50,7 +48,6 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -165,24 +162,7 @@ public class JsonEncounterQueueDataHandler implements QueueDataHandler {
         unsavedPatient.addName(personName);
         unsavedPatient.addIdentifier(patientIdentifier);
 
-        Patient candidatePatient;
-        if (StringUtils.isNotEmpty(unsavedPatient.getUuid())) {
-            candidatePatient = Context.getPatientService().getPatientByUuid(unsavedPatient.getUuid());
-            if (candidatePatient == null) {
-                String temporaryUuid = unsavedPatient.getUuid();
-                RegistrationDataService dataService = Context.getService(RegistrationDataService.class);
-                RegistrationData registrationData = dataService.getRegistrationDataByTemporaryUuid(temporaryUuid);
-                if(registrationData!=null) {
-                    candidatePatient = Context.getPatientService().getPatientByUuid(registrationData.getAssignedUuid());
-                }
-            }
-        } else if (!StringUtils.isBlank(patientIdentifier.getIdentifier())) {
-            List<Patient> patients = Context.getPatientService().getPatients(patientIdentifier.getIdentifier());
-            candidatePatient = findPatient(patients, unsavedPatient);
-        } else {
-            List<Patient> patients = Context.getPatientService().getPatients(unsavedPatient.getPersonName().getFullName());
-            candidatePatient = findPatient(patients, unsavedPatient);
-        }
+        Patient candidatePatient = PatientSearchUtils.findSavedPatient(unsavedPatient,true);
 
         if (candidatePatient == null) {
             queueProcessorException.addException(new Exception("Unable to uniquely identify patient for this encounter form data. "));
@@ -190,36 +170,6 @@ public class JsonEncounterQueueDataHandler implements QueueDataHandler {
         } else {
             encounter.setPatient(candidatePatient);
         }
-    }
-
-    private Patient findPatient(final List<Patient> patients, final Patient unsavedPatient) {
-        String unsavedGivenName = unsavedPatient.getGivenName();
-        String unsavedFamilyName = unsavedPatient.getFamilyName();
-        PersonName unsavedPersonName = unsavedPatient.getPersonName();
-        for (Patient patient : patients) {
-            // match it using the person name and gender, what about the dob?
-            PersonName savedPersonName = patient.getPersonName();
-            if (StringUtils.isNotBlank(savedPersonName.getFullName())
-                    && StringUtils.isNotBlank(unsavedPersonName.getFullName())) {
-                String savedGivenName = savedPersonName.getGivenName();
-                int givenNameEditDistance = StringUtils.getLevenshteinDistance(
-                        StringUtils.lowerCase(savedGivenName),
-                        StringUtils.lowerCase(unsavedGivenName));
-                String savedFamilyName = savedPersonName.getFamilyName();
-                int familyNameEditDistance = StringUtils.getLevenshteinDistance(
-                        StringUtils.lowerCase(savedFamilyName),
-                        StringUtils.lowerCase(unsavedFamilyName));
-                if (givenNameEditDistance < 3 && familyNameEditDistance < 3) {
-                    if (StringUtils.equalsIgnoreCase(patient.getGender(), unsavedPatient.getGender())) {
-                        if (patient.getBirthdate() != null && unsavedPatient.getBirthdate() != null
-                                && DateUtils.isSameDay(patient.getBirthdate(), unsavedPatient.getBirthdate())) {
-                            return patient;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
     }
 
     private void processObs(final Encounter encounter, final Obs parentObs, final Object obsObject) {

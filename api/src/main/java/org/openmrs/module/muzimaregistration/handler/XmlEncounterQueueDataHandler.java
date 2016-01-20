@@ -16,7 +16,6 @@ package org.openmrs.module.muzimaregistration.handler;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.builder.ToStringBuilder;
 import org.apache.commons.lang.math.NumberUtils;
-import org.apache.commons.lang.time.DateUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.openmrs.Concept;
@@ -28,7 +27,6 @@ import org.openmrs.Obs;
 import org.openmrs.Patient;
 import org.openmrs.PatientIdentifier;
 import org.openmrs.PatientIdentifierType;
-import org.openmrs.Person;
 import org.openmrs.PersonName;
 import org.openmrs.User;
 import org.openmrs.annotation.Handler;
@@ -38,26 +36,21 @@ import org.openmrs.module.muzima.model.QueueData;
 import org.openmrs.module.muzima.model.handler.QueueDataHandler;
 import org.openmrs.module.muzimaforms.MuzimaForm;
 import org.openmrs.module.muzimaforms.api.MuzimaFormService;
-import org.openmrs.module.muzimaregistration.api.RegistrationDataService;
-import org.openmrs.module.muzimaregistration.api.model.RegistrationData;
+import org.openmrs.module.muzimaregistration.utils.PatientSearchUtils;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 
 /**
  */
@@ -173,22 +166,7 @@ public class XmlEncounterQueueDataHandler implements QueueDataHandler {
         unsavedPatient.addName(personName);
         unsavedPatient.addIdentifier(patientIdentifier);
 
-        Patient candidatePatient;
-        if (StringUtils.isNotEmpty(unsavedPatient.getUuid())) {
-            candidatePatient = Context.getPatientService().getPatientByUuid(unsavedPatient.getUuid());
-            if (candidatePatient == null) {
-                String temporaryUuid = unsavedPatient.getUuid();
-                RegistrationDataService dataService = Context.getService(RegistrationDataService.class);
-                RegistrationData registrationData = dataService.getRegistrationDataByTemporaryUuid(temporaryUuid);
-                candidatePatient = Context.getPatientService().getPatientByUuid(registrationData.getAssignedUuid());
-            }
-        } else if (!StringUtils.isBlank(patientIdentifier.getIdentifier())) {
-            List<Patient> patients = Context.getPatientService().getPatients(patientIdentifier.getIdentifier());
-            candidatePatient = findPatient(patients, unsavedPatient);
-        } else {
-            List<Patient> patients = Context.getPatientService().getPatients(unsavedPatient.getPersonName().getFullName());
-            candidatePatient = findPatient(patients, unsavedPatient);
-        }
+        Patient candidatePatient = PatientSearchUtils.findSavedPatient(unsavedPatient,true);
 
         if (candidatePatient == null) {
             queueProcessorException.addException(new Exception("Unable to uniquely identify patient for this encounter form data. "
@@ -196,36 +174,6 @@ public class XmlEncounterQueueDataHandler implements QueueDataHandler {
         }
 
         encounter.setPatient(candidatePatient);
-    }
-
-    private Patient findPatient(final List<Patient> patients, final Patient unsavedPatient) {
-        String unsavedGivenName = unsavedPatient.getGivenName();
-        String unsavedFamilyName = unsavedPatient.getFamilyName();
-        PersonName unsavedPersonName = unsavedPatient.getPersonName();
-        for (Patient patient : patients) {
-            // match it using the person name and gender, what about the dob?
-            PersonName savedPersonName = patient.getPersonName();
-            if (StringUtils.isNotBlank(savedPersonName.getFullName())
-                    && StringUtils.isNotBlank(unsavedPersonName.getFullName())) {
-                String savedGivenName = savedPersonName.getGivenName();
-                int givenNameEditDistance = StringUtils.getLevenshteinDistance(
-                        StringUtils.lowerCase(savedGivenName),
-                        StringUtils.lowerCase(unsavedGivenName));
-                String savedFamilyName = savedPersonName.getFamilyName();
-                int familyNameEditDistance = StringUtils.getLevenshteinDistance(
-                        StringUtils.lowerCase(savedFamilyName),
-                        StringUtils.lowerCase(unsavedFamilyName));
-                if (givenNameEditDistance < 3 && familyNameEditDistance < 3) {
-                    if (StringUtils.equalsIgnoreCase(patient.getGender(), unsavedPatient.getGender())) {
-                        if (patient.getBirthdate() != null && unsavedPatient.getBirthdate() != null
-                                && DateUtils.isSameDay(patient.getBirthdate(), unsavedPatient.getBirthdate())) {
-                            return patient;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
     }
 
     private Node findSubNode(final String name, final Node node) {
