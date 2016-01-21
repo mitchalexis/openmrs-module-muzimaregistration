@@ -36,8 +36,6 @@ import org.openmrs.module.muzimaregistration.utils.JsonUtils;
 import org.openmrs.module.muzimaregistration.utils.PatientSearchUtils;
 import org.springframework.stereotype.Component;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
@@ -53,13 +51,11 @@ public class DemographicsUpdateQueueDataHandler implements QueueDataHandler {
 
     private static final String DISCRIMINATOR_VALUE = "json-demographics-update";
 
-    private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-
     private final Log log = LogFactory.getLog(DemographicsUpdateQueueDataHandler.class);
 
     private Patient unsavedPatient;
+    private Patient savedPatient;
     private String payload;
-    Set<PersonAttribute> personAttributes;
     private QueueProcessorException queueProcessorException;
 
     @Override
@@ -67,7 +63,8 @@ public class DemographicsUpdateQueueDataHandler implements QueueDataHandler {
         log.info("Processing demographics update form data: " + queueData.getUuid());
         try {
             if (validate(queueData)) {
-                Context.getPatientService().savePatient(unsavedPatient);
+                updateSavedPatientDemographics();
+                Context.getPatientService().savePatient(savedPatient);
             }
         } catch (Exception e) {
             if (!e.getClass().equals(QueueProcessorException.class)) {
@@ -80,6 +77,35 @@ public class DemographicsUpdateQueueDataHandler implements QueueDataHandler {
         }
     }
 
+    private void updateSavedPatientDemographics(){
+        if(unsavedPatient.getIdentifiers() != null){
+            savedPatient.addIdentifiers(unsavedPatient.getIdentifiers());
+        }
+        if(unsavedPatient.getPersonName() != null) {
+            savedPatient.addName(unsavedPatient.getPersonName());
+        }
+        if(StringUtils.isNotBlank(unsavedPatient.getGender())) {
+            savedPatient.setGender(unsavedPatient.getGender());
+        }
+        if(unsavedPatient.getBirthdate() != null) {
+            savedPatient.setBirthdate(unsavedPatient.getBirthdate());
+            savedPatient.setBirthdateEstimated(unsavedPatient.getBirthdateEstimated());
+        }
+        if(unsavedPatient.getPersonAddress() != null) {
+            savedPatient.addAddress(unsavedPatient.getPersonAddress());
+        }
+        if(unsavedPatient.getAttributes() != null) {
+            Set<PersonAttribute> attributes = unsavedPatient.getAttributes();
+            Iterator<PersonAttribute> iterator = attributes.iterator();
+            while(iterator.hasNext()) {
+                savedPatient.addAttribute(iterator.next());
+            }
+        }
+        if(unsavedPatient.getChangedBy() != null) {
+            savedPatient.setChangedBy(unsavedPatient.getChangedBy());
+        }
+    }
+
     @Override
     public boolean validate(QueueData queueData) {
         log.info("Processing demographics Update form data: " + queueData.getUuid());
@@ -87,11 +113,12 @@ public class DemographicsUpdateQueueDataHandler implements QueueDataHandler {
         try {
             payload = queueData.getPayload();
             Patient candidatePatient = getCandidatePatientFromPayload();
-            unsavedPatient = PatientSearchUtils.findSavedPatient(candidatePatient,true);
-            if(unsavedPatient == null){
+            savedPatient = PatientSearchUtils.findSavedPatient(candidatePatient,true);
+            if(savedPatient == null){
                 queueProcessorException.addException(new Exception("Unable to uniquely identify patient for this " +
                         "demographic update form data. "));
             } else {
+                unsavedPatient = new Patient();
                 populateUnsavedPatientDemographicsFromPayload();
             }
             return true;
@@ -298,7 +325,6 @@ public class DemographicsUpdateQueueDataHandler implements QueueDataHandler {
                         new Exception("Change of Gender requires manual review"));
             }
         }
-        unsavedPatient.setGender(gender);
     }
 
     private void setUnsavedPatientNameFromPayload(){
@@ -317,7 +343,9 @@ public class DemographicsUpdateQueueDataHandler implements QueueDataHandler {
             personName.setMiddleName(middleName);
         }
 
-        unsavedPatient.addName(personName);
+        if(StringUtils.isNotBlank(personName.getFullName())) {
+            unsavedPatient.addName(personName);
+        }
     }
 
     private void setUnsavedPatientAddressesFromPayload(){
@@ -342,12 +370,8 @@ public class DemographicsUpdateQueueDataHandler implements QueueDataHandler {
         if(StringUtils.isNotBlank(village)) {
             patientAddress.setCityVillage(village);
         }
-        log.error("Checking address");
         if(!patientAddress.isBlank()){
-            log.error("address is not blank");
             unsavedPatient.addAddress(patientAddress);
-        }else {
-            log.error("address is blank");
         }
     }
 
@@ -387,11 +411,11 @@ public class DemographicsUpdateQueueDataHandler implements QueueDataHandler {
     }
 
     private boolean isBirthDateChangeValidated(){
-        return JsonUtils.readAsBoolean(payload, "$['demographicsupdate']['birthdate_change_validated']");
+        return JsonUtils.readAsBoolean(payload, "$['demographicsupdate']['demographicsupdate.birthdate_change_validated']");
     }
 
     private boolean isGenderChangeValidated(){
-        return JsonUtils.readAsBoolean(payload, "$['demographicsupdate']['gender_change_validated']");
+        return JsonUtils.readAsBoolean(payload, "$['demographicsupdate']['demographicsupdate.gender_change_validated']");
     }
 
     @Override
