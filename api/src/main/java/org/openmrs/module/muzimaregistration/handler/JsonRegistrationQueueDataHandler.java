@@ -15,18 +15,17 @@ package org.openmrs.module.muzimaregistration.handler;
 
 import net.minidev.json.JSONArray;
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.time.DateUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.openmrs.Location;
 import org.openmrs.Patient;
 import org.openmrs.PatientIdentifier;
 import org.openmrs.PatientIdentifierType;
-import org.openmrs.Person;
 import org.openmrs.PersonAddress;
 import org.openmrs.PersonAttribute;
 import org.openmrs.PersonAttributeType;
 import org.openmrs.PersonName;
+import org.openmrs.User;
 import org.openmrs.annotation.Handler;
 import org.openmrs.api.PersonService;
 import org.openmrs.api.context.Context;
@@ -36,6 +35,8 @@ import org.openmrs.module.muzima.model.handler.QueueDataHandler;
 import org.openmrs.module.muzimaregistration.api.RegistrationDataService;
 import org.openmrs.module.muzimaregistration.api.model.RegistrationData;
 import org.openmrs.module.muzimaregistration.utils.JsonUtils;
+import org.openmrs.module.muzimaregistration.utils.PatientSearchUtils;
+
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -129,6 +130,7 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         setPatientNameFromPayload();
         setPatientAddressesFromPayload();
         setPersonAttributesFromPayload();
+        setCreatorFromPayload();
     }
 
     private void setPatientIdentifiersFromPayload() {
@@ -160,8 +162,8 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
 
     private List<PatientIdentifier> getOtherPatientIdentifiersFromPayload() {
         List<PatientIdentifier> otherIdentifiers = new ArrayList<PatientIdentifier>();
-        Object identifierTypeNameObject = JsonUtils.readAsObject(payload, "$['observation']['other_identifier_type']");
-        Object identifierValueObject =JsonUtils.readAsObject(payload, "$['observation']['other_identifier_value']");
+        Object identifierTypeNameObject = JsonUtils.readAsObject(payload, "$['patient']['patient.other_identifier_type']");
+        Object identifierValueObject =JsonUtils.readAsObject(payload, "$['patient']['patient.other_identifier_value']");
 
         if (identifierTypeNameObject instanceof JSONArray) {
             JSONArray identifierTypeName = (JSONArray) identifierTypeNameObject;
@@ -320,50 +322,18 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         }
     }
 
-    private Patient findSimilarSavedPatient() {
-        Patient savedPatient = null;
-        if (unsavedPatient.getNames().isEmpty()) {
-            PatientIdentifier identifier = unsavedPatient.getPatientIdentifier();
-            if (identifier != null) {
-                List<Patient> patients = Context.getPatientService().getPatients(identifier.getIdentifier());
-                savedPatient = findPatient(patients, unsavedPatient);
-            }
+    private  void setCreatorFromPayload(){
+        String providerString = JsonUtils.readAsString(payload, "$['encounter']['encounter.provider_id']");
+        User user = Context.getUserService().getUserByUsername(providerString);
+        if (user == null) {
+            queueProcessorException.addException(new Exception("Unable to find user using the id: " + providerString));
         } else {
-            PersonName personName = unsavedPatient.getPersonName();
-            List<Patient> patients = Context.getPatientService().getPatients(personName.getFullName());
-            savedPatient = findPatient(patients, unsavedPatient);
+            unsavedPatient.setCreator(user);
         }
-        return savedPatient;
     }
 
-    private Patient findPatient(final List<Patient> patients, final Patient unsavedPatient) {
-        for (Patient patient : patients) {
-            // match it using the person name and gender, what about the dob?
-            PersonName savedPersonName = patient.getPersonName();
-            PersonName unsavedPersonName = unsavedPatient.getPersonName();
-            if (StringUtils.isNotBlank(savedPersonName.getFullName())
-                    && StringUtils.isNotBlank(unsavedPersonName.getFullName())) {
-                if (StringUtils.equalsIgnoreCase(patient.getGender(), unsavedPatient.getGender())) {
-                    if (patient.getBirthdate() != null && unsavedPatient.getBirthdate() != null
-                            && DateUtils.isSameDay(patient.getBirthdate(), unsavedPatient.getBirthdate())) {
-                        String savedGivenName = savedPersonName.getGivenName();
-                        String unsavedGivenName = unsavedPersonName.getGivenName();
-                        int givenNameEditDistance = StringUtils.getLevenshteinDistance(
-                                StringUtils.lowerCase(savedGivenName),
-                                StringUtils.lowerCase(unsavedGivenName));
-                        String savedFamilyName = savedPersonName.getFamilyName();
-                        String unsavedFamilyName = unsavedPersonName.getFamilyName();
-                        int familyNameEditDistance = StringUtils.getLevenshteinDistance(
-                                StringUtils.lowerCase(savedFamilyName),
-                                StringUtils.lowerCase(unsavedFamilyName));
-                        if (givenNameEditDistance < 3 && familyNameEditDistance < 3) {
-                            return patient;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
+    private Patient findSimilarSavedPatient() {
+        return PatientSearchUtils.findSavedPatient(unsavedPatient,false);
     }
 
     @Override
