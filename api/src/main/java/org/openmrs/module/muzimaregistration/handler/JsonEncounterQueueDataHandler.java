@@ -291,12 +291,17 @@ public class JsonEncounterQueueDataHandler implements QueueDataHandler {
             } else {
                 log.info("Unable to find form using the uuid: " + formUuid + ". Setting the form field to null!");
                 String encounterTypeString = JsonUtils.readAsString(encounterPayload, "$['encounter']['encounter.type_id']");
-                int encounterTypeId = NumberUtils.toInt(encounterTypeString, -999);
-                EncounterType encounterType = Context.getEncounterService().getEncounterType(encounterTypeId);
-                if (encounterType == null) {
-                    queueProcessorException.addException(new Exception("Unable to find encounter type using the id: " + encounterTypeString));
-                } else {
-                    encounter.setEncounterType(encounterType);
+                if(encounterTypeString != null) {
+                    int encounterTypeId = NumberUtils.toInt(encounterTypeString, -999);
+                    EncounterType encounterType = Context.getEncounterService().getEncounterType(encounterTypeId);
+                    if (encounterType == null) {
+                        queueProcessorException.addException(new Exception("Unable to find encounter type using the id: " +
+                                encounterTypeString));
+                    } else {
+                        encounter.setEncounterType(encounterType);
+                    }
+                }else{
+                    queueProcessorException.addException(new Exception("Unable to find form using the uuid: " + formUuid));
                 }
             }
         } else {
