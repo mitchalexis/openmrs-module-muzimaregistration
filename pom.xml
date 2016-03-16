@@ -5,7 +5,7 @@
 
     <groupId>org.openmrs.module</groupId>
     <artifactId>muzimaregistration</artifactId>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.3-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Muzima Registration Module</name>
     <description>
@@ -38,8 +38,8 @@
     </modules>
 
     <properties>
-        <muzimaVersion>1.0.2-SNAPSHOT</muzimaVersion>
-        <muzimaFormsVersion>1.0.2-SNAPSHOT</muzimaFormsVersion>
+        <muzimaVersion>1.0.3-SNAPSHOT</muzimaVersion>
+        <muzimaFormsVersion>1.0.3-SNAPSHOT</muzimaFormsVersion>
         <openMRSVersion>1.8.2</openMRSVersion>
         <webservicesRestVersion>2.1</webservicesRestVersion>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
