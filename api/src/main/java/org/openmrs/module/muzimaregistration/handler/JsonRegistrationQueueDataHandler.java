@@ -306,6 +306,17 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         String phoneNumber = JsonUtils.readAsString(payload, "$['patient']['patient.phone_number']");
         setAsAttribute("Contact Phone Number",phoneNumber);
 
+        String contactPersonName = JsonUtils.readAsString(payload, "$['patient']['patient.contact_person_name']");
+        setAsAttribute("Primary Contact Person Name",contactPersonName);
+
+        String contactPersonPhoneNumber = JsonUtils.readAsString(payload, "$['patient']['patient.contact_person_phone_number']");
+        setAsAttribute("Primary Contact Person Phone Number",contactPersonPhoneNumber);
+
+        String ethnicGroup = JsonUtils.readAsString(payload, "$['patient']['patient.ethnic_group']");
+        if(ethnicGroup != null && ethnicGroup.equals("Other"))
+            ethnicGroup = JsonUtils.readAsString(payload, "$['patient']['patient.ethnic_group_other']");
+        setAsAttribute("Ethnic Group",ethnicGroup);
+
         unsavedPatient.setAttributes(personAttributes);
     }
 
@@ -315,7 +326,7 @@ public class JsonRegistrationQueueDataHandler implements QueueDataHandler {
         if(attributeType !=null && value != null){
             PersonAttribute personAttribute = new PersonAttribute(attributeType, value);
             personAttributes.add(personAttribute);
-        } else if(attributeType ==null){
+        } else if(attributeType ==null && StringUtils.isNotBlank(value)){
             queueProcessorException.addException(
                     new Exception("Unable to find Person Attribute type by name '" + attributeTypeName + "'")
             );
